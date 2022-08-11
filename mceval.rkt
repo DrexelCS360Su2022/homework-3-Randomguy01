@@ -23,6 +23,16 @@
         ((assignment? exp) (eval-assignment exp env))
         ((definition? exp) (eval-definition exp env))
         ((if? exp) (eval-if exp env))
+        ;; START Part 1: Problem 2
+        ((and? exp) (eval-and exp env))
+        ((or? exp) (eval-or exp env))
+        ;; END Part 1: Problem 2
+        ;; Part 1: Problem 3
+        ((let? exp) (mceval (let->combination exp) env))
+        ;; START Part 1: Problem 4
+        ((delay? exp) (delay->lambda exp env))
+        ((force? exp) (eval-force exp env))
+        ;; END Part 1: Problem 4
         ((lambda? exp)
          (make-procedure (lambda-parameters exp)
                          (lambda-body exp)
@@ -36,16 +46,17 @@
         (else
          (error "Unknown expression type -- EVAL" exp))))
 
+
 (define (mcapply procedure arguments)
   (cond ((primitive-procedure? procedure)
          (apply-primitive-procedure procedure arguments))
         ((compound-procedure? procedure)
          (eval-sequence
-           (procedure-body procedure)
-           (extend-environment
-             (procedure-parameters procedure)
-             arguments
-             (procedure-environment procedure))))
+          (procedure-body procedure)
+          (extend-environment
+           (procedure-parameters procedure)
+           arguments
+           (procedure-environment procedure))))
         (else
          (error
           "Unknown procedure type -- APPLY" procedure))))
@@ -62,6 +73,33 @@
       (mceval (if-consequent exp) env)
       (mceval (if-alternative exp) env)))
 
+;; START Part 1: Problem 2
+(define (eval-and exp env)
+  (cond
+    [(null? exp) #t]
+    [(equal? (first-operand exp) 'and) (eval-and (rest-operands exp) env)]
+    [(equal? (mceval (first-operand exp) env) #t) (eval-and (rest-operands exp) env)]
+    [(equal? (mceval (first-operand exp) env) #f) #f]
+    [(last-exp? exp) (mceval (first-operand exp) env)]
+    [else (eval-and (rest-operands exp) env)]))
+
+(define (eval-or exp env)
+  (cond
+    [(null? exp) #f]
+    [(equal? (first-operand exp) 'or) (eval-or (rest-operands exp) env)]
+    [(equal? (mceval (first-operand exp) env) #f) (eval-or (rest-operands exp) env)]
+    [(equal? (mceval (first-operand exp) env) #t) #t]
+    [(last-exp? exp) (mceval (first-operand exp) env)]
+    [else (eval-or (rest-operands exp) env)]))
+
+;; END Part 1: Problem 2
+
+;; START Part 1: Problem 4
+(define (delay->lambda exp env)  (mceval (append '(lambda ()) (list (first-operand (rest-operands exp)))) env))
+
+(define (eval-force exp env) (mceval (rest-operands exp) env))
+;; END Part 1: Problem 4
+
 (define (eval-sequence exps env)
   (cond ((last-exp? exps) (mceval (first-exp exps) env))
         (else (mceval (first-exp exps) env)
@@ -75,9 +113,10 @@
 
 (define (eval-definition exp env)
   (define-variable! (definition-variable exp)
-                    (mceval (definition-value exp) env)
-                    env)
+    (mceval (definition-value exp) env)
+    env)
   'ok)
+
 
 ;;;SECTION 4.1.2
 
@@ -122,7 +161,9 @@
       (make-lambda (cdadr exp)
                    (cddr exp))))
 
+
 (define (lambda? exp) (tagged-list? exp 'lambda))
+
 
 (define (lambda-parameters exp) (cadr exp))
 (define (lambda-body exp) (cddr exp))
@@ -145,6 +186,35 @@
 (define (make-if predicate consequent alternative)
   (list 'if predicate consequent alternative))
 
+;; START Part 1: Problem 2
+(define (and? exp) (tagged-list? exp 'and))
+(define (or? exp) (tagged-list? exp 'or))
+;; END Part 1: Problem 2
+
+;; START Part 1: Problem 3
+(define (let? exp) (tagged-list? exp 'let))
+
+(define (let-bindings exp)
+  (cadr exp))
+
+(define (let-vars exp)
+  (map car (let-bindings exp)))
+
+(define (let-vals exp)
+  (map cadr (let-bindings exp)))
+
+(define (let-body exp)
+  (cddr exp))
+
+(define (let->combination exp)
+  (cons (make-lambda (let-vars exp) (let-body exp)) (let-vals exp)))
+
+;; END Part 1: Problem 3
+
+;; START Part 1: Problem 4
+(define (delay? exp) (tagged-list? exp 'delay))
+(define (force? exp) (tagged-list? exp 'force))
+;; END Part 1: Problem 4
 
 (define (begin? exp) (tagged-list? exp 'begin))
 
@@ -305,7 +375,19 @@
         (list 'cdr cdr)
         (list 'cons cons)
         (list 'null? null?)
-;;      more primitives
+        ;;      more primitives
+        ;; START Part 1: Problem 1
+        (list '+ +)
+        (list '* *)
+        (list '- -)
+        (list '/ /)
+        (list '< <)
+        (list '<= <=)
+        (list '= =)
+        (list '>= >=)
+        (list '> >)
+        (list 'error (λ () (error "Metacircular Interpreter Aborted")))
+        ;; END Part 1: Problem 1        
         ))
 
 (define (primitive-procedure-names)
